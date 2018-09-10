@@ -1,0 +1,118 @@
+void LCD_Init(void)
+{
+	//CS0=0;
+	
+	RST=1;  
+	Delay(100);
+	
+	RST=0;
+	Delay(800);
+
+	RST=1;
+	Delay(800);
+
+
+	
+//************* Start Initial Sequence **********//
+//-----------------------------------ST7789S reset sequence------------------------------------// 
+//LCD_RESET=1; 
+//Delayms(1);                                                 //Delay 1ms 
+//LCD_RESET=0; 
+//Delayms(10);                                                //Delay 10ms 
+//LCD_RESET=1; 
+//Delay(120);                                               //Delay 120ms 
+//--------------------------------------------------------------------------------------------// 
+WriteComm(0x11); //Sleep out
+//Delayms(120); //Delay 120ms
+Delay(120);
+//------------------------------------ST7735S Frame Rate-----------------------------------------//
+WriteComm(0xB1);
+WriteData(0x05);
+WriteData(0x3A);
+WriteData(0x3A);
+WriteComm(0xB2);
+WriteData(0x05);
+WriteData(0x3A);
+WriteData(0x3A);
+WriteComm(0xB3);
+WriteData(0x05);
+WriteData(0x3A);
+WriteData(0x3A);
+WriteData(0x05);
+WriteData(0x3A);
+WriteData(0x3A);
+//------------------------------------End ST7735S Frame Rate-----------------------------------------//
+WriteComm(0xB4); //Dot inversion
+WriteData(0x03);
+//------------------------------------ST7735S Power Sequence-----------------------------------------//
+
+WriteComm(0xC0); 
+WriteData(0x28); 
+WriteData(0x08); 
+WriteData(0x84); 
+WriteComm(0xC1); 
+WriteData(0XC0); 
+WriteComm(0xC2); 
+WriteData(0x0C); 
+WriteData(0x00); 
+WriteComm(0xC3); 
+WriteData(0x8C); 
+WriteData(0x2A); 
+WriteComm(0xC4); 
+WriteData(0x8A); 
+WriteData(0xEE); 
+
+
+//---------------------------------End ST7735S Power Sequence-------------------------------------//
+ 
+WriteComm(0xC5); //VCOM
+WriteData(0x0C);
+
+
+
+//------------------------------------ST7735S Gamma Sequence-----------------------------------------//
+WriteComm(0xE0);
+WriteData(0x03);
+WriteData(0x1B);
+WriteData(0x12);
+WriteData(0x11);
+WriteData(0x3F);
+WriteData(0x3A);
+WriteData(0x32);
+WriteData(0x34);
+WriteData(0x2F);
+WriteData(0x2B);
+WriteData(0x30);
+WriteData(0x3A);
+WriteData(0x00);
+WriteData(0x01);
+WriteData(0x02);
+WriteData(0x05);
+WriteComm(0xE1);
+WriteData(0x03);
+WriteData(0x1B);
+WriteData(0x12);
+WriteData(0x11);
+WriteData(0x32);
+WriteData(0x2F);
+WriteData(0x2A);
+WriteData(0x2F);
+WriteData(0x2E);
+WriteData(0x2C);
+WriteData(0x35);
+WriteData(0x3F);
+WriteData(0x00);
+WriteData(0x00);
+WriteData(0x01);
+WriteData(0x05);
+//------------------------------------End ST7735S Gamma Sequence-----------------------------------------//
+WriteComm(0xFC); //Enable Gate power save mode
+WriteData(0x8C);
+WriteComm(0x3A); //65k mode
+WriteData(0x05);
+WriteComm(0x36); //Display on
+WriteData(0xdc); // SC15-8 
+WriteComm(0x2c);
+
+  WriteComm(0x29);
+}
