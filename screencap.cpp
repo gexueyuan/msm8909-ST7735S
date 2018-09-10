@@ -182,7 +182,7 @@ int main(int argc, char** argv)
         h = screenshot.getHeight();
         s = screenshot.getStride();
         f = screenshot.getFormat();
-        size = screenshot.getSize();
+        size = screenshot.getSize();		
     } else {
         const char* fbpath = "/dev/graphics/fb0";
         int fb = open(fbpath, O_RDONLY);
@@ -221,31 +221,20 @@ int main(int argc, char** argv)
             write(fd, streamData->data(), streamData->size());
             streamData->unref();
         } else {
-//            write(fd, &w, 4);
-//            write(fd, &h, 4);
-//            write(fd, &f, 4);
+
             size_t Bpp = bytesPerPixel(f);
-//Bpp =4,w=720 ,s=720, h=1280,
-			//printf("bpp is%d,%d,%d,%d\n",Bpp,PIXEL_FORMAT_RGBA_8888,PIXEL_FORMAT_RGBX_8888,PIXEL_FORMAT_RGB_888);
 			offtset_h = base;
 			p_image = rgb_data;
             for (size_t y=0 ; y<h/8 ; y++) {
 				for(i =0;i < 640*Bpp;i+=5*Bpp){
-					//printf("\ni = %d,888 r is %x \n",i,*(char*)base);
-					//printf("\ni = %d,888 g is %x \n",i,*(char*)(base+1));			
-					//printf("\ni = %d,888 b is %x \n",i,*(char*)(base+2));
 					pixel_565 = RGB888ToRGB565(*(char*)(base),*(char*)(base+1),*(char*)(base+2));
-					//printf("\n565 is %x \n",pixel_565);
 					pixel_565_ld = ((pixel_565&0xFF)<<8)|((pixel_565&0xFF00)>>8);
-            		//write(fd, &pixel_565_ld, sizeof(unsigned short));
 					memcpy(p_image,&pixel_565_ld , sizeof(unsigned short));
 					p_image +=sizeof(unsigned short);
                 	base = (void *)((char *)base + 5*Bpp);
 				}
                 offtset_h = (void *)((char *)offtset_h + 8*s*Bpp);
-				//printf("y offset\n");
 				base = offtset_h;
-				//printf("relocate base %d\n",y);
             }
 			
         }
