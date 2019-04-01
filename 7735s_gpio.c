@@ -251,7 +251,7 @@ int main(int argc, char **argv, char **envp)
 	return 0;
 }
 */
-int spi_user_gpio_init(unsigned int gpio_dc,unsigned int gpio_reset)
+int spi_user_gpio_init(unsigned int gpio_dc,unsigned int gpio_reset,unsigned int gpio_pwm)
 {
 
 	int gpio_fd;
@@ -264,12 +264,14 @@ int spi_user_gpio_init(unsigned int gpio_dc,unsigned int gpio_reset)
 	gpio_set_dir(gpio_reset, 1);//out
 
 
+	gpio_export(gpio_pwm);
+	gpio_set_dir(gpio_pwm, 1);//out
 
 	return 1;
 
 
 }
-/*
+#if 1
 unsigned char picc1[]=
 { 0X10,0X10,0X00,0X80,0X00,0XA0,0X01,0X1B,
 0XFF,0X9D,0XFF,0X9D,0XFF,0X9D,0XFF,0X9D,0XFF,0X9D,0XFF,0X9D,0XFF,0X7D,0XFF,0X7D,
@@ -2833,4 +2835,4 @@ unsigned char picc1[]=
 0XC8,0X64,0XD8,0X45,0XD8,0X66,0XD8,0X85,0XC0,0X44,0XD0,0X24,0XE0,0X04,0XE0,0X04,
 0XF0,0X05,0XF0,0X07,0XF8,0X08,0XF8,0X4A,0XF8,0XAC,0XF0,0XAB,0XF8,0X48,0XF8,0X07,
 };
-*/
+#endif

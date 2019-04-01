@@ -26,15 +26,15 @@ uint8_t image_buffer[] = {
 static int spi_fd;
 static const char *device = "/dev/spidev0.0";
 static uint8_t mode = 3;
-static uint8_t bits = 8;
+static uint8_t bits = 9;
 static uint32_t speed =19200000;
 static uint16_t delay;
 uint8_t startbyte = 0;
 int bgr = 0;
 int rotate = 0;
 
-#define  TFT_WIDTH  	128
-#define  TFT_HEIGHT 	160
+#define  TFT_WIDTH  	240
+#define  TFT_HEIGHT 	320
 #define	 TFT_BPP		16
 #define	 TFT_CMD 	0
 #define	 TFT_DATA	1
@@ -43,7 +43,9 @@ int rotate = 0;
 
 #define  SPI_GPIO_DC	912
 #define	 SPI_GPIO_RESET	914
-uint8_t  spi_tft_buf[128*160*2];
+#define	 SPI_GPIO_PWM	1006
+
+uint8_t  spi_tft_buf[240*320*2*2];
 uint8_t  spi_buf[128];
 #define FBTFT_MAX_INIT_SEQUENCE      512
 #define FBTFT_GAMMA_MAX_VALUES_TOTAL 128
@@ -268,6 +270,106 @@ int ret;
 
 }
 
+/* 16 bit pixel over 9-bit SPI bus: dc + high byte, dc + low byte */
+int fbtft_write_vmem16_bus9(int fd, void*buffer,size_t offset, size_t len)
+{
+	uint8_t *vmem8;
+	uint16_t *txbuf16 = (uint16_t*)spi_tft_buf;
+	int remain;
+	int to_copy;
+	int tx_array_size;
+	int i;
+	int ret = 0;
+
+	printf("%s(offset=%zu, len=%zu)\n",
+		__func__, offset, len);
+
+	if (!buffer) {
+		printf("%s: txbuf.buf is NULL\n", __func__);
+		return -1;
+	}
+	vmem8 = buffer;
+
+	for (i = 0; i < len; i ++) {
+		//txbuf16[i + 1] = ((0x0100 | (uint16_t)vmem8[i]))>>1 | ((((uint16_t)vmem8[i]&0x01)<<15)&0x8000);
+		txbuf16[i] = ((0x0100 | (uint16_t)vmem8[i]))>>1 | ((((uint16_t)vmem8[i]&0x01)<<15)&0x8000);
+		
+
+//		if (!(i % 6))
+//			puts("");
+		//if(vmem8[i] != 0)
+			//printf("\n%.2X %.2X %.2X %.2X\n", vmem8[i],vmem8[i+1],txbuf16[i],txbuf16[i+1]);
+	}
+	printf("buff len is %d\n",len);
+	fbtft_write_spi(spi_tft_buf,len * 2);
+	if (ret < 0)
+		return ret;
+	return ret;
+}
+
+static void send_cmd(int fd, uint8_t cmd)
+{
+	int ret;
+	uint16_t tx[1] = {0};
+	uint16_t rx[ARRAY_SIZE(tx)] = {0};
+
+	tx[0] = ((0x00FF & (uint16_t)cmd))>>1 | ((((uint16_t)cmd&0x01)<<15)&0x8000);
+	//tx[0] = cmd;
+    //printf("%.4X ", tx[0]);
+	struct spi_ioc_transfer tr = {
+		.tx_buf = (unsigned long)tx,
+		.rx_buf = (unsigned long)rx,
+		.len = sizeof(tx),
+		.delay_usecs = delay,
+		.speed_hz = speed,
+		.bits_per_word = bits,
+	};
+ 
+	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
+	if (ret < 1)
+		pabort("can't send cmd");
+	/*
+	for (ret = 0; ret < ARRAY_SIZE(tx); ret++) {
+		if (!(ret % 6))
+			puts("");
+		printf("%.2X ", rx[ret]);
+	}
+	puts("");
+ */
+}
+ 
+static void send_data(int fd, uint8_t data)
+{
+	int ret;
+	uint16_t tx[1];
+	uint16_t rx[ARRAY_SIZE(tx)] = {0};
+ 
+	tx[0] = ((0x0100 | (uint16_t)data))>>1 | ((((uint16_t)data&0x01)<<15)&0x8000);
+	//tx[0] = 0x100 | (uint16_t)data;
+	//printf("%.4X ", tx[0]);
+	struct spi_ioc_transfer tr = {
+		.tx_buf = (unsigned long)tx,
+		.rx_buf = (unsigned long)rx,
+		.len = sizeof(tx),
+		.delay_usecs = delay,
+		.speed_hz = speed,
+		.bits_per_word = bits,
+	};
+ 
+	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
+	if (ret < 1)
+		pabort("can't send spi data");
+	/*
+ 	for (ret = 0; ret < ARRAY_SIZE(tx); ret++) {
+		if (!(ret % 6))
+			puts("");
+		printf("%.2X ", rx[ret]);
+	}
+	puts("");
+	*/
+}
+ 
+
 int fbtft_write_buf_dc(void *buf, size_t len, int dc)
 {
 	int ret;
@@ -275,13 +377,14 @@ int fbtft_write_buf_dc(void *buf, size_t len, int dc)
 	if(dc ){
 
 		//printf("write data to spi\n");
+		//send_data(spi_fd,)
 
 	}
 	else{
 
 		//printf("write cmd to spi\n");
+		//send_cmd()
 	}
-	
 	usleep(2);
 	u_gpio_set_value(SPI_GPIO_DC, dc);
 	usleep(2);
@@ -800,26 +903,36 @@ static void fbtft_update_display(unsigned int start_line,
 
 void  WriteComm(uint8_t cmd)
 {
-	uint8_t spi_cmd[1] = {0};
+//	uint8_t spi_cmd[1] = {0};
 
-	spi_cmd[0] = cmd;
-	fbtft_write_buf_dc(spi_cmd, 1, TFT_CMD);
+//	spi_cmd[0] = cmd;
+//	fbtft_write_buf_dc(spi_cmd, 1, TFT_CMD);
+
+	send_cmd(spi_fd,cmd);
 
 }
 
 void  WriteData(uint8_t data)
 {
-	uint8_t spi_data[1] ={0};
+//	uint8_t spi_data[1] ={0};
 
-	spi_data[0] = data;
-	fbtft_write_buf_dc(spi_data, 1, TFT_DATA);
+//	spi_data[0] = data;
+//	fbtft_write_buf_dc(spi_data, 1, TFT_DATA);
+	send_data(spi_fd,data);
+
 
 }
 //========================================================
 void LCD_Write_Data(uint16_t dat16)
 {
-  WriteData(dat16>>8);
-  WriteData(dat16);
+	uint8_t  data_in;
+
+	data_in = (uint8_t)(dat16>>8);
+	WriteData(data_in);
+
+	data_in = (uint8_t)dat16;
+	WriteData(data_in);
+
 }
 //========================================================
 
@@ -828,14 +941,16 @@ void DISP_WINDOWS(void)
 	 WriteComm(0x2A);
 	 WriteData(0x00);
 	 WriteData(0x00);
+	 
 	 WriteData(0x00);
-	 WriteData(0x7F);
+	 WriteData(0xEF);
 
 	 WriteComm(0x2B);
 	 WriteData(0x00);
 	 WriteData(0x00);
-	 WriteData(0x00);
-	 WriteData(0x9F);
+	 
+	 WriteData(0x01);
+	 WriteData(0x3F);
 	 WriteComm(0x2C);
 }
 
@@ -855,17 +970,19 @@ void DISPLAY_COLOR(uint16_t color)
 void DISPLAY_RGB(void)
 {
     int i,j,k;
-        for (i=53;i>0;i--)
+	
+		DISP_WINDOWS();
+        for (i=100;i>0;i--)
         for (j=TFT_WIDTH;j>0;j--)
         {
     LCD_Write_Data(RED);
         }
-    for (i=53;i>0;i--)
+    for (i=100;i>0;i--)
         for (j=TFT_WIDTH;j>0;j--)
         {
     LCD_Write_Data(GREEN);
         }
-    for (k=54;k>0;k--)
+    for (k=120;k>0;k--)
         for (j=TFT_WIDTH;j>0;j--)
         {
     LCD_Write_Data(BLUE);
@@ -917,125 +1034,114 @@ void LCD_Init(void)
 	//CS0=0;
 	
 	u_gpio_set_value(SPI_GPIO_RESET,1);
-	usleep(100*1000);
+	usleep(1*1000);
 	
 	u_gpio_set_value(SPI_GPIO_RESET,0);
-	usleep(100*1000);
+	usleep(10*1000);
 
 	u_gpio_set_value(SPI_GPIO_RESET,1);
-	usleep(300*1000);
+	usleep(120*1000);
 
 
 	
+WriteComm(0x11);
+usleep(120*1000);
+
 //************* Start Initial Sequence **********//
 //-----------------------------------ST7789S reset sequence------------------------------------// 
-//LCD_RESET=1; 
-//Delayms(1);                                                 //Delay 1ms 
-//LCD_RESET=0; 
-//Delayms(10);                                                //Delay 10ms 
-//LCD_RESET=1; 
-//Delay(120);                                               //Delay 120ms 
-//--------------------------------------------------------------------------------------------// 
-WriteComm(0x11); //Sleep out
-//Delayms(120); //Delay 120ms
-usleep(120*1000);
-//------------------------------------ST7735S Frame Rate-----------------------------------------//
-WriteComm(0xB1);
-WriteData(0x05);
-WriteData(0x3A);
-WriteData(0x3A);
-WriteComm(0xB2);
-WriteData(0x05);
-WriteData(0x3A);
-WriteData(0x3A);
-WriteComm(0xB3);
-WriteData(0x05);
-WriteData(0x3A);
-WriteData(0x3A);
-WriteData(0x05);
-WriteData(0x3A);
-WriteData(0x3A);
-//------------------------------------End ST7735S Frame Rate-----------------------------------------//
-WriteComm(0xB4); //Dot inversion
-WriteData(0x03);
-//------------------------------------ST7735S Power Sequence-----------------------------------------//
-
-WriteComm(0xC0); 
-WriteData(0x28); 
-WriteData(0x08); 
-WriteData(0x84); 
-WriteComm(0xC1); 
-WriteData(0XC0); 
-WriteComm(0xC2); 
-WriteData(0x0C); 
-WriteData(0x00); 
-WriteComm(0xC3); 
-WriteData(0x8C); 
-WriteData(0x2A); 
-WriteComm(0xC4); 
-WriteData(0x8A); 
-WriteData(0xEE); 
-
-
-//---------------------------------End ST7735S Power Sequence-------------------------------------//
- 
-WriteComm(0xC5); //VCOM
-WriteData(0x0C);
-
-
-
-//------------------------------------ST7735S Gamma Sequence-----------------------------------------//
-WriteComm(0xE0);
-WriteData(0x03);
-WriteData(0x1B);
-WriteData(0x12);
-WriteData(0x11);
-WriteData(0x3F);
-WriteData(0x3A);
-WriteData(0x32);
-WriteData(0x34);
-WriteData(0x2F);
-WriteData(0x2B);
-WriteData(0x30);
-WriteData(0x3A);
+//--------------------------------------Display Setting------------------------------------------//
+WriteComm(0x36);
 WriteData(0x00);
-WriteData(0x01);
-WriteData(0x02);
-WriteData(0x05);
-WriteComm(0xE1);
-WriteData(0x03);
-WriteData(0x1B);
-WriteData(0x12);
-WriteData(0x11);
-WriteData(0x32);
-WriteData(0x2F);
-WriteData(0x2A);
-WriteData(0x2F);
-WriteData(0x2E);
-WriteData(0x2C);
+WriteComm(0x3a);
+WriteData(0x55);
+//--------------------------------ST7789S Frame rate setting----------------------------------//
+WriteComm(0xb2);
+WriteData(0x0c);
+WriteData(0x0c);
+WriteData(0x00);
+WriteData(0x33);
+WriteData(0x33);
+WriteComm(0xb7);
 WriteData(0x35);
-WriteData(0x3F);
-WriteData(0x00);
-WriteData(0x00);
+//---------------------------------ST7789S Power setting--------------------------------------//
+WriteComm(0xbb);
+WriteData(0x2b);
+WriteComm(0xc0);
+WriteData(0x2c);
+WriteComm(0xc2);
 WriteData(0x01);
+WriteComm(0xc3);
+WriteData(0x11);
+WriteComm(0xc4);
+WriteData(0x20);
+WriteComm(0xc6);
+WriteData(0x0f);
+WriteComm(0xd0);
+WriteData(0xa4);
+WriteData(0xa1);
+//--------------------------------ST7789S gamma setting---------------------------------------//
+WriteComm(0xe0);
+WriteData(0xd0);
+WriteData(0x00);
 WriteData(0x05);
-//------------------------------------End ST7735S Gamma Sequence-----------------------------------------//
-WriteComm(0xFC); //Enable Gate power save mode
-WriteData(0x8C);
-WriteComm(0x3A); //65k mode
+WriteData(0x0e);
+WriteData(0x15);
+WriteData(0x0d);
+WriteData(0x37);
+WriteData(0x43);
+WriteData(0x47);
+WriteData(0x09);
+WriteData(0x15);
+WriteData(0x12);
+WriteData(0x16);
+WriteData(0x19);
+WriteComm(0xe1);
+WriteData(0xd0);
+WriteData(0x00);
 WriteData(0x05);
-WriteComm(0x36); //Display on
-WriteData(0xdc); // SC15-8 
-WriteComm(0x2c);
-
+WriteData(0x0d);
+WriteData(0x0c);
+WriteData(0x06);
+WriteData(0x2d);
+WriteData(0x44);
+WriteData(0x40);
+WriteData(0x0e);
+WriteData(0x1c);
+WriteData(0x18);
+WriteData(0x16);
+WriteData(0x19);
 WriteComm(0x29);
+
+
+}
+
+void dislpay_tft_init(void)
+{
+	int ret = 0;
+	spi_fd = open(device, O_RDWR);
+		
+	if (spi_fd < 0)
+		pabort("can't open device");
+
+	ret = ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+	if (ret == -1)
+		pabort("can't set max speed hz");
+
+	ret = ioctl(spi_fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed);
+	if (ret == -1)
+		pabort("can't get max speed hz");
+
+	printf("spi mode: %d\n", mode);
+	printf("bits per word: %d\n", bits);
+	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
+
 }
 
 void  spi_tft_init(void)
 {
 	
 	int ret = 0;
-	uint32_t speed_t = 5000000;
+	uint32_t speed_t = 8000000;//19200000;//
 	
 	spi_fd = open(device, O_RDWR);
 	if (spi_fd < 0)
@@ -1079,49 +1185,48 @@ void  spi_tft_init(void)
 	printf("max speed: %d Hz (%d KHz)\n", speed_t, speed_t/1000);
 
 	
-	spi_user_gpio_init(SPI_GPIO_DC,SPI_GPIO_RESET);
+	spi_user_gpio_init(SPI_GPIO_DC,SPI_GPIO_RESET,SPI_GPIO_PWM);
 
 	LCD_Init();
+	
+	u_gpio_set_value(SPI_GPIO_PWM,1);
+	//dislpay_tft_init();
+//	while(1){
+//		DISPLAY_COLOR(PURPLE);
+//		usleep(500000);
+//		DISPLAY_RGB();
+//		
+//		usleep(500000);
+//		Frame();
+//		
+//	usleep(500000);
+//	}
+	//DISPLAY_image(picc1);
 	close(spi_fd);
-
-}
-
-void dislpay_tft_init(void)
-{
-	int ret = 0;
-	spi_fd = open(device, O_RDWR);
-		
-	if (spi_fd < 0)
-		pabort("can't open device");
-
-	ret = ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
-	if (ret == -1)
-		pabort("can't set max speed hz");
-
-	ret = ioctl(spi_fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed);
-	if (ret == -1)
-		pabort("can't get max speed hz");
-
-	printf("spi mode: %d\n", mode);
-	printf("bits per word: %d\n", bits);
-	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
 
 }
 int   display_image(unsigned char*  image_data,int len)
 {
 
 	int ret = 0;
-
+#if 1
 	if(len == TFT_WIDTH*TFT_HEIGHT*2){
 		
 		DISP_WINDOWS();
 	
-		fbtft_write_buf_dc(image_data,len,TFT_DATA);
+		//fbtft_write_buf_dc(image_data,len,TFT_DATA);
+		fbtft_write_vmem16_bus9(spi_fd,image_data,0,len);
 
 		ret = 1;
 	}
 	else
 		ret= -1;
+
+		
+#endif
+//			DISPLAY_COLOR(PURPLE);
+//			DISPLAY_RGB();	
+//			Frame();
 
 	return ret;
 }

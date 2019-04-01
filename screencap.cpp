@@ -47,6 +47,9 @@ static uint32_t DEFAULT_DISPLAY_ID = ISurfaceComposer::eDisplayIdMain;
 #define RGB565_GREEN    0x07e0
 #define RGB565_BLUE     0x001f
 
+#define DISPLAY_H     320
+#define DISPLAY_W	  240	
+
 unsigned short RGB888ToRGB565(unsigned char cRed,unsigned char cGreen,unsigned char cBlue)
 {
 	unsigned short n565Color = 0;
@@ -116,13 +119,20 @@ int main(int argc, char** argv)
 
     const char* pname = argv[0];
     bool png = false;
+	
+    bool init = false;
     int32_t displayId = DEFAULT_DISPLAY_ID;
     int c;
-	unsigned char rgb_data[40960] = {0};
+	unsigned char rgb_data[320*240*2] = {0};
 	unsigned char* p_image;
 	p_image = rgb_data;
-    while ((c = getopt(argc, argv, "phd:")) != -1) {
+    while ((c = getopt(argc, argv, "iphd:")) != -1) {
         switch (c) {
+			case 'i':
+				init = true;
+				spi_tft_init();
+				return 0;
+				break;
             case 'p':
                 png = true;
                 break;
@@ -171,8 +181,14 @@ int main(int argc, char** argv)
 	unsigned short  pixel_565;
 	unsigned short  pixel_565_ld;
     ScreenshotClient screenshot;
-
-	spi_tft_init();
+/*
+	if(init == true){
+		spi_tft_init();
+		dislpay_tft_init();
+		return 0;
+	}
+*/
+	
 	dislpay_tft_init();
 	while(1){
     sp<IBinder> display = SurfaceComposerClient::getBuiltInDisplay(displayId);
@@ -225,6 +241,7 @@ int main(int argc, char** argv)
             size_t Bpp = bytesPerPixel(f);
 			offtset_h = base;
 			p_image = rgb_data;
+			/*
             for (size_t y=0 ; y<h/8 ; y++) {
 				for(i =0;i < 640*Bpp;i+=5*Bpp){
 					pixel_565 = RGB888ToRGB565(*(char*)(base),*(char*)(base+1),*(char*)(base+2));
@@ -236,7 +253,20 @@ int main(int argc, char** argv)
                 offtset_h = (void *)((char *)offtset_h + 8*s*Bpp);
 				base = offtset_h;
             }
-			
+			*/
+	        for (size_t y=0 ; y<DISPLAY_H ; y++) {
+				
+				for(i =0;i < DISPLAY_W;i++){
+					pixel_565 = RGB888ToRGB565(*(char*)(base),*(char*)(base+1),*(char*)(base+2));
+					pixel_565_ld = ((pixel_565&0xFF)<<8)|((pixel_565&0xFF00)>>8);
+					memcpy(p_image,&pixel_565_ld , sizeof(unsigned short));
+					p_image +=sizeof(unsigned short);
+		        	base = (void *)((char *)base + Bpp);
+				}
+				
+	        offtset_h = (void *)((char *)offtset_h + s*Bpp);
+			base = offtset_h;
+	    }	
         }
 		display_image(rgb_data,sizeof(rgb_data));
     }
